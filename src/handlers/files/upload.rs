@@ -37,9 +37,7 @@ pub async fn upload(
             continue;
         }
 
-
-
-
+        // TODO! WRITE FILE
 
         println!("Length of `{}` is {} bytes", name, data.len());
     }
