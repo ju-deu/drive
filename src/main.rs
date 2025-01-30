@@ -55,36 +55,44 @@ async fn main() {
         .allow_credentials(true)*/;
 
     // axum
-    let protected_routes = Router::new()
-        .route("/v1/user/password/change", put(update::password::change::change_password))
-        .route("/v1/user/username/change", put(update::username::change::change_username))
-        .route("/v1/user/refresh_token", get(refresh_token))
-        .route("/v1/file/upload", post(upload))
+    let protected_file_routes = Router::new()
+        .route("/upload", post(upload))
         .layer(
             ServiceBuilder::new()
                 .layer(middleware::from_fn(auth))
                 .layer(Extension(wrapped_appstate.clone()))
         );
 
-    let public_routes = Router::new()
-        .route("/v1/user/new", post(new))
-        .route("/v1/user/login", post(login))
-        ;
+
+
+    let protected_user_routes = Router::new()
+        .route("/password/change", put(update::password::change::change_password))
+        .route("/username/change", put(update::username::change::change_username))
+        .route("/refresh_token", get(refresh_token))
+        .layer(
+            ServiceBuilder::new()
+                .layer(middleware::from_fn(auth))
+                .layer(Extension(wrapped_appstate.clone()))
+        );
+
+    let public_user_routes = Router::new()
+        .route("/new", post(new))
+        .route("/login", post(login));
 
 
 
     // set up axum
     let app = Router::new()
-        .merge(protected_routes)
-        .merge(public_routes)
+        .nest("/v1/file", protected_file_routes)
+        .nest("/v1/user", protected_user_routes)
+        .nest("/v1/user", public_user_routes)
         .layer(
             ServiceBuilder::new()
                 .layer(Extension(wrapped_appstate.clone()))
                 .layer(TraceLayer::new_for_http())
                 .layer(cors)
         )
-        .with_state(wrapped_appstate.clone())
-        ;
+        .with_state(wrapped_appstate.clone());
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await.unwrap();
     axum::serve(listener, app).await.unwrap();

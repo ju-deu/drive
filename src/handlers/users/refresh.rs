@@ -12,14 +12,14 @@ pub async fn refresh_token(
     auth_user: Extension<AuthUser>,
     jar: PrivateCookieJar,
     State(appstate): State<AppstateWrapper>,
-) -> Result<(StatusCode, PrivateCookieJar), (StatusCode, String)> {
+) -> Result<(StatusCode, PrivateCookieJar), (StatusCode, &'static str)> {
     let appstate = appstate.0;
     let user = auth_user.0.0;
 
     // generate new token
     let new_token = match Claims::generate_jwt(&appstate.jwt_secret, &user) {
         Ok(o) => o,
-        Err(_) => return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to generate new token".to_string()))
+        Err(_) => return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to generate new token"))
     };
 
     // set new token in cookies

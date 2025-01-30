@@ -16,7 +16,7 @@ pub async fn change_username(
     auth_user: Extension<AuthUser>,
     State(appstate): State<AppstateWrapper>,
     Json(body): Json<Body>
-) -> Result<StatusCode, (StatusCode, String)> {
+) -> Result<StatusCode, (StatusCode, &'static str)> {
     let user = auth_user.0.0;
     let appstate = appstate.0;
 
@@ -31,7 +31,7 @@ pub async fn change_username(
 
 
     if !query_result.is_ok() {
-        return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to write change to db".to_string()))
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to write change to db"))
     }
 
 
