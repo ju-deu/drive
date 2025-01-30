@@ -25,21 +25,21 @@ pub async fn new(
     State(appstate): State<AppstateWrapper>,
     jar: PrivateCookieJar,
     Json(body): Json<Body>,
-) -> Result<(StatusCode, PrivateCookieJar), (StatusCode, String)> {
+) -> Result<(StatusCode, PrivateCookieJar), (StatusCode, &'static str)> {
     let appstate = appstate.0;
 
     // validate username & password
     match validation::username(&body.username) {
         (true, _) => {},
         (false, e) => {
-                return Err((StatusCode::BAD_REQUEST, format!("Username is not valid: {}", e)))
+                return Err((StatusCode::BAD_REQUEST, format!("Username is not valid: {}", e).as_str()))
         }
     }
 
     match validation::password(&body.password) {
         (true, _) => {}
         (false, e) => {
-            return Err((StatusCode::BAD_REQUEST, format!("Password is not valid: {}", e)))
+            return Err((StatusCode::BAD_REQUEST, format!("Password is not valid: {}", e).as_str()))
         }
     }
 
@@ -49,7 +49,7 @@ pub async fn new(
     let argon = Argon2::default();
     let hashed_password = match argon.hash_password(body.password.as_ref(), &salt) {
         Ok(o) => o.to_string(),
-        Err(_) => return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to hash password".to_string()))
+        Err(_) => return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to hash password"))
     };
 
     // construct user model
@@ -65,7 +65,7 @@ pub async fn new(
     // generate jwt for user
     let token = Claims::generate_jwt(&appstate.jwt_secret, &user);
     let Ok(token) = token else {
-        return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to generate jwt".to_string()))
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to generate jwt"))
     };
 
     // write user to db
@@ -86,12 +86,12 @@ pub async fn new(
         return match e {
             Error::Database(db_err) => {
                 if db_err.is_unique_violation() {
-                    Err((StatusCode::BAD_REQUEST, "Username is already taken".to_string()))
+                    Err((StatusCode::BAD_REQUEST, "Username is already taken"))
                 } else {
-                    Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to write to database".to_string()))
+                    Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to write to database"))
                 }
             }
-            _ => Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to write to database".to_string()))
+            _ => Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to write to database"))
         }
     }
 

@@ -26,7 +26,7 @@ pub async fn change_password(
     State(appstate): State<AppstateWrapper>,
     jar: PrivateCookieJar,
     Json(body): Json<Body>
-) -> Result<(StatusCode, PrivateCookieJar), (StatusCode, String)> {
+) -> Result<(StatusCode, PrivateCookieJar), (StatusCode, &'static str)> {
     let mut user = auth_user.0.0;
     let appstate = appstate.0;
 
@@ -34,10 +34,10 @@ pub async fn change_password(
     match user.compare_passwords(body.old_password) {
         Ok(o) => {
             if !o {
-                return Err((StatusCode::UNAUTHORIZED, "Wrong Password".to_string()))
+                return Err((StatusCode::UNAUTHORIZED, "Wrong Password"))
             }
         },
-        Err(_) => return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to compare passwords".to_string()))
+        Err(_) => return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to compare passwords"))
     };
 
     // hash new password
@@ -46,7 +46,7 @@ pub async fn change_password(
 
     let new_hashed = match argon2.hash_password(body.new_password.as_ref(), &salt) {
         Ok(o) => o.to_string(),
-        Err(_) => return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to hash new password".to_string()))
+        Err(_) => return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to hash new password"))
     };
 
     // generate new token-id
@@ -64,13 +64,13 @@ pub async fn change_password(
         .await;
 
     if !query_result.is_ok() {
-        return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to write change to db".to_string()))
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to write change to db"))
     }
 
     // generate new token
     let token = match Claims::generate_jwt(&appstate.jwt_secret, &user) {
         Ok(o) => o,
-        Err(_) => return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to generate new token".to_string()))
+        Err(_) => return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to generate new token"))
     };
 
     // add new token to cookies

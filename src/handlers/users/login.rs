@@ -18,7 +18,7 @@ pub async fn login(
     State(appstate): State<AppstateWrapper>,
     jar: PrivateCookieJar,
     Json(body): Json<Body>
-) -> Result<(StatusCode, PrivateCookieJar), (StatusCode, String)> {
+) -> Result<(StatusCode, PrivateCookieJar), (StatusCode, &'static str)> {
     let appstate = appstate.0;
 
     // get user from db
@@ -30,27 +30,27 @@ pub async fn login(
 
     let row = match query_result {
         Ok(Some(row)) => row,
-        Ok(None) => return Err((StatusCode::BAD_REQUEST, "User does not exist".to_string())),
-        Err(_) => return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to fetch user from db".to_string()))
+        Ok(None) => return Err((StatusCode::BAD_REQUEST, "User does not exist")),
+        Err(_) => return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to fetch user from db"))
     };
 
     // compare passwords
     let user= User::from_pg_row(row)
-        .ok().ok_or((StatusCode::INTERNAL_SERVER_ERROR, "Failed to parse user".to_string()))?;
+        .ok().ok_or((StatusCode::INTERNAL_SERVER_ERROR, "Failed to parse user"))?;
 
     match user.compare_passwords(body.password) {
         Ok(o) => {
             if !o {
-                return Err((StatusCode::UNAUTHORIZED, "Wrong password".to_string()))
+                return Err((StatusCode::UNAUTHORIZED, "Wrong password"))
             }
         },
-        Err(_) => return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to compare passwords".to_string()))
+        Err(_) => return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to compare passwords"))
     }
 
     // generate token
     let token = match Claims::generate_jwt(&appstate.jwt_secret, &user) {
         Ok(o) => o,
-        Err(_) => return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to generate jwt".to_string()))
+        Err(_) => return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to generate jwt"))
     };
 
     // set cookies
