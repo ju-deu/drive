@@ -11,6 +11,7 @@ use uuid::Uuid;
 #[derive(Serialize, Deserialize)]
 pub struct Response {
     reference_uuid: Uuid,
+    file: String
 }
 
 #[axum_macros::debug_handler]
@@ -18,13 +19,13 @@ pub async fn upload(
     auth_user: Extension<AuthUser>,
     State(appstate): State<AppstateWrapper>,
     mut multipart: Multipart,
-) -> Result<(StatusCode, Json<Response>), (StatusCode, &'static str)> {
+) -> Result<(StatusCode, Json<Vec<Response>>), (StatusCode, &'static str)> {
     let appstate = appstate.0;
     let user = auth_user.0 .0;
 
-    let reference_uuid = Uuid::new_v4();
+    let mut response_references = Vec::new();
 
-    while let Some(mut field) = multipart
+    while let Some(field) = multipart
         .next_field()
         .await
         .ok()
@@ -45,7 +46,7 @@ pub async fn upload(
             .file_name()
             .ok_or((
                 StatusCode::BAD_REQUEST,
-                "Failed to get filename (most likely due to no file being sent)",
+                "Failed to get filename (most likely due to no file being sent or embedded file content is being used)",
             ))?
             .to_string();
         if filename.contains("/") { return Err((StatusCode::BAD_REQUEST, "Filename includes \"/\""))}
@@ -56,12 +57,15 @@ pub async fn upload(
             .unwrap_or("")
             .to_ascii_lowercase();
 
+        // generate new reference uuid which acts as an identified/new name for the uploaded file
+        let reference_uuid = Uuid::new_v4();
+
         // TODO ! use streaming instead
         let content = field
             .bytes()
             .await
             .ok()
-            .ok_or((StatusCode::BAD_REQUEST, "Failed to get file content"))?;
+            .ok_or((StatusCode::BAD_REQUEST, "Failed to get file content (most likely because file is too large)"))?;
 
         // construct file and paths
         let string_relative_file_path = format!(
@@ -105,7 +109,9 @@ pub async fn upload(
                 return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to write file to disk"));
             }
         }
+
+        response_references.push(Response {  reference_uuid, file: filename.to_owned() })
     }
 
-    Ok((StatusCode::CREATED, Json(Response{ reference_uuid, })))
+    Ok((StatusCode::CREATED, Json(response_references)))
 }

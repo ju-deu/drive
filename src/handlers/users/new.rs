@@ -31,15 +31,15 @@ pub async fn new(
     // validate username & password
     match validation::username(&body.username) {
         (true, _) => {},
-        (false, e) => {
-                return Err((StatusCode::BAD_REQUEST, format!("Username is not valid: {}", e).as_str()))
+        (false, _) => {
+                return Err((StatusCode::BAD_REQUEST, "Username is not valid"))
         }
     }
 
     match validation::password(&body.password) {
         (true, _) => {}
-        (false, e) => {
-            return Err((StatusCode::BAD_REQUEST, format!("Password is not valid: {}", e).as_str()))
+        (false, _) => {
+            return Err((StatusCode::BAD_REQUEST, "Password is not valid"))
         }
     }
 
