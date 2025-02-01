@@ -7,7 +7,7 @@ use sqlx::Row;
 use std::error::Error;
 use std::io;
 use std::path::Path;
-use tokio_stream::{Stream, StreamExt};
+use tokio_stream::Stream;
 use uuid::Uuid;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -114,11 +114,15 @@ impl File {
     pub async fn write_to_db(&self, appstate: &Appstate) -> Result<(), Box<dyn Error>> {
         let conn = &appstate.db_pool;
 
-        let query = r"INSERT INTO file (reference_uuid, owner_uuid, filename) VALUES ($1, $2, $3)";
+        let query = r"INSERT INTO file (reference_uuid, owner_uuid, filename, relative_path, absolute_path, size)
+                         VALUES ($1, $2, $3, $4, $5, $6)";
         let _query = sqlx::query(query)
             .bind(&self.reference_uuid.to_string())
             .bind(&self.owner_uuid.to_string())
             .bind(&self.filename)
+            .bind(&self.relative_path)
+            .bind(&self.absolute_path)
+            .bind(self.size.clone() as i64)
             .execute(conn.as_ref())
             .await?;
 

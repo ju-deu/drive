@@ -10,7 +10,7 @@ use uuid::Uuid;
 #[derive(Serialize, Deserialize)]
 pub struct Response {
     reference_uuid: Uuid,
-    file: String
+    filename: String
 }
 
 #[axum_macros::debug_handler]
@@ -85,7 +85,7 @@ pub async fn upload(
             }
         }
 
-        response_references.push(Response { reference_uuid: file.reference_uuid, file: filename.to_owned() })
+        response_references.push(Response { reference_uuid: file.reference_uuid, filename: filename.to_owned() })
     }
 
     Ok((StatusCode::CREATED, Json(response_references)))
