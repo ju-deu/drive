@@ -24,11 +24,9 @@ pub async fn upload(
 
     let mut response_references = Vec::new();
 
-    while let Some(field) = multipart
+    while let Ok(Some(field)) = multipart
         .next_field()
         .await
-        .ok()
-        .ok_or((StatusCode::BAD_REQUEST, "Failed to get next field"))?
     {
         // get name, content and filename
         let field_name = &field
