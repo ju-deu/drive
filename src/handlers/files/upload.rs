@@ -5,13 +5,12 @@ use axum::extract::{Multipart, State};
 use axum::http::StatusCode;
 use axum::{Extension, Json};
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize)]
 pub struct Response {
     reference_uuid: Uuid,
-    file: String
+    filename: String
 }
 
 #[axum_macros::debug_handler]
@@ -25,11 +24,9 @@ pub async fn upload(
 
     let mut response_references = Vec::new();
 
-    while let Some(field) = multipart
+    while let Ok(Some(field)) = multipart
         .next_field()
         .await
-        .ok()
-        .ok_or((StatusCode::BAD_REQUEST, "Failed to get next field"))?
     {
         // get name, content and filename
         let field_name = &field
@@ -42,6 +39,7 @@ pub async fn upload(
             continue;
         }
 
+        // get file data
         let filename = &field
             .file_name()
             .ok_or((
@@ -49,18 +47,8 @@ pub async fn upload(
                 "Failed to get filename (most likely due to no file being sent or embedded file content is being used)",
             ))?
             .to_string();
-        if filename.contains("/") { return Err((StatusCode::BAD_REQUEST, "Filename includes \"/\""))}
 
-        let file_extension = Path::new(filename)
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .unwrap_or("")
-            .to_ascii_lowercase();
-
-        // generate new reference uuid which acts as an identified/new name for the uploaded file
-        let reference_uuid = Uuid::new_v4();
-
-        // TODO ! use streaming instead
+        // get file content
         let content = field
             .bytes()
             .await
@@ -68,26 +56,13 @@ pub async fn upload(
             .ok_or((StatusCode::BAD_REQUEST, "Failed to get file content (most likely because file is too large)"))?;
 
         // construct file and paths
-        let string_relative_file_path = format!(
-            "{}/{}.{}",
-            &user.username,
-            &reference_uuid.to_string(),
-            &file_extension
-        );
-        let string_absolute_file_path = format!(
-            "{}/{}",
-            &appstate.file_location,
-            &string_relative_file_path
-        );
-
-        let file = File::new(
-            Some(reference_uuid.clone()),
-            user.uuid.clone(),
+        let file = File::construct(
+            None,
             filename.clone(),
-            string_relative_file_path,
-            string_absolute_file_path,
+            &user,
             content.len(),
-        );
+            &appstate,
+        ).await.ok_or((StatusCode::BAD_REQUEST, "Failed to construct File model"))?;
 
         // write to db
         let _query = file.write_to_db(&appstate)
@@ -101,7 +76,7 @@ pub async fn upload(
                 if let Err(_) = file.delete_from_db(&appstate).await {
                     eprintln!(
                         "FATAL! Dangling entry in database 'file': reference_uuid: {} | owner_uuid: {}",
-                        reference_uuid,
+                        file.reference_uuid,
                         file.owner_uuid,
                     );
                     return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to write to disk and remove from db"));
@@ -110,7 +85,7 @@ pub async fn upload(
             }
         }
 
-        response_references.push(Response {  reference_uuid, file: filename.to_owned() })
+        response_references.push(Response { reference_uuid: file.reference_uuid, filename: filename.to_owned() })
     }
 
     Ok((StatusCode::CREATED, Json(response_references)))

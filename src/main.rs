@@ -13,9 +13,11 @@ use drive_lib::models::appstate::{Appstate, AppstateWrapper};
 use sqlx::PgPool;
 use std::env;
 use std::sync::Arc;
+use axum::extract::DefaultBodyLimit;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
+use drive_lib::handlers::files::streaming::upload::stream_upload;
 
 #[tokio::main]
 async fn main() {
@@ -57,8 +59,10 @@ async fn main() {
     // axum
     let protected_file_routes = Router::new()
         .route("/upload", post(upload))
+        .route("/stream/upload", post(stream_upload))
         .layer(
             ServiceBuilder::new()
+                .layer(DefaultBodyLimit::max(2000000000))
                 .layer(middleware::from_fn(auth))
                 .layer(Extension(wrapped_appstate.clone()))
         );
