@@ -4,4 +4,3 @@
 .env
 Cargo.lock
 /files/*
-debug.txt
