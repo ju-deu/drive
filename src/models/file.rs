@@ -5,12 +5,11 @@ use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgRow;
 use sqlx::Row;
 use std::error::Error;
-use std::io;
 use std::path::Path;
-use tokio_stream::Stream;
+use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct File {
     pub reference_uuid: Uuid,
     pub owner_uuid: Uuid,
@@ -23,8 +22,6 @@ pub struct File {
 
     pub timestamp: usize,
 }
-// todo: create and enter?
-//
 
 impl File {
     /// returns File model without validation
@@ -181,23 +178,30 @@ impl File {
         Ok(())
     }
 
-    /// stream files to disk (recommended for large files) \
+    /// appends small chunk to file (used for streaming files) \
     /// DOES NOT CHECK FOR VALIDATION
-    pub async fn stream_disk<S>(&self, mut stream: S) -> io::Result<()>
-    where
-        S: Stream<Item = io::Result<Vec<u8>>> + Unpin,
-    {
-        /*let path = Path::new(&self.absolute_path);
-        // create file
-        let file = fs::File::create(path);
+    pub async fn write_chunk(&self, chunk: &[u8]) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let path = Path::new(&self.absolute_path);
+        // create if doesn't exist
+        if !tokio::fs::try_exists(path).await? {
+            tokio::fs::File::create(path).await?;
+        }
 
-        let mut writer = AsyncW::new(stream);
-        while let Some(chunk) = stream.next().await {
-            let data = chunk?;
-            writer
-        }*/
-        panic!("TODO: method `stream_disk<S>` on `File`");
 
+        // file options for writing
+        let mut file_options = tokio::fs::File::options()
+            .append(true)
+            .open(&self.absolute_path)
+            .await?;
+
+        // write
+        file_options.write(chunk).await?;
+
+        Ok(())
+    }
+
+    pub async fn delete_from_disk(&self) -> Result<(), Box<dyn Error + Send + Sync>> {
+        tokio::fs::remove_file(Path::new(&self.absolute_path)).await?;
         Ok(())
     }
 }
