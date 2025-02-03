@@ -3,7 +3,7 @@ use axum::routing::{get, post, put};
 use axum::{middleware, Extension, Router};
 use axum_extra::extract::cookie::Key;
 use dotenv::dotenv;
-use drive_lib::handlers::files::upload::upload;
+use drive_lib::handlers::files::upload::stream_upload;
 use drive_lib::handlers::users::authenticate::auth;
 use drive_lib::handlers::users::login::login;
 use drive_lib::handlers::users::new::new;
@@ -17,7 +17,6 @@ use axum::extract::DefaultBodyLimit;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
-use drive_lib::handlers::files::streaming::upload::stream_upload;
 
 #[tokio::main]
 async fn main() {
@@ -46,20 +45,11 @@ async fn main() {
     // set up http server
     let cors = CorsLayer::new()
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
-        .allow_origin(Any)
-        /*.allow_headers([
-            "content-type".parse().unwrap(),
-            "authorization".parse().unwrap(),
-            "cookie".parse().unwrap(),
-            "host".parse().unwrap(),
-            "user-agent".parse().unwrap(),
-        ])
-        .allow_credentials(true)*/;
+        .allow_origin(Any);
 
     // axum
     let protected_file_routes = Router::new()
-        .route("/upload", post(upload))
-        .route("/stream/upload", post(stream_upload))
+        .route("/upload", post(stream_upload))
         .layer(
             ServiceBuilder::new()
                 .layer(DefaultBodyLimit::max(2000000000))

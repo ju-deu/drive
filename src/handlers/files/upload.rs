@@ -14,79 +14,69 @@ pub struct Response {
 }
 
 #[axum_macros::debug_handler]
-pub async fn upload(
-    auth_user: Extension<AuthUser>,
+pub async fn stream_upload(
     State(appstate): State<AppstateWrapper>,
-    mut multipart: Multipart,
+    auth_user: Extension<AuthUser>,
+    mut multipart: Multipart
 ) -> Result<(StatusCode, Json<Vec<Response>>), (StatusCode, &'static str)> {
     let appstate = appstate.0;
-    let user = auth_user.0 .0;
+    let user = auth_user.0.0;
 
-    let mut response_references = Vec::new();
+    let mut response: Vec<Response> = Vec::new();
 
-    while let Ok(Some(field)) = multipart
-        .next_field()
-        .await
-    {
-        // get name, content and filename
-        let field_name = &field
-            .name()
-            .ok_or((StatusCode::BAD_REQUEST, "Failed to get field name"))?
-            .to_string();
+    while let Ok(Some(mut field)) = multipart.next_field().await {
+        let field_name = match &field.name() {
+            Some(x) => x.to_string(),
+            _ => { return Err((StatusCode::BAD_REQUEST, "Failed to get field name"))}
+        };
+        // continue on everything not marked as a file
+        if &field_name.to_lowercase() != "file" { continue; }
 
-        // continue on everything that isn't marked as a file
-        if field_name.to_lowercase() != "file" {
-            continue;
-        }
+        let filename = match &field.file_name() {
+            Some(x) => x.to_string(),
+            _ => { return Err((StatusCode::BAD_REQUEST, "Failed to get filename"))}
+        };
 
-        // get file data
-        let filename = &field
-            .file_name()
-            .ok_or((
-                StatusCode::BAD_REQUEST,
-                "Failed to get filename (most likely due to no file being sent or embedded file content is being used)",
-            ))?
-            .to_string();
-
-        // get file content
-        let content = field
-            .bytes()
-            .await
-            .ok()
-            .ok_or((StatusCode::BAD_REQUEST, "Failed to get file content (most likely because file is too large)"))?;
-
-        // construct file and paths
-        let file = File::construct(
+        // mutable to later update file size
+        let mut file = File::construct(
             None,
             filename.clone(),
             &user,
-            content.len(),
-            &appstate,
-        ).await.ok_or((StatusCode::BAD_REQUEST, "Failed to construct File model"))?;
+            0,
+            &appstate
+        ).await.ok_or((StatusCode::INTERNAL_SERVER_ERROR, "Failed to construct File"))?;
 
-        // write to db
-        let _query = file.write_to_db(&appstate)
-            .await.ok().ok_or((StatusCode::INTERNAL_SERVER_ERROR, "Failed to write to db"));
-
-        // write to disk
-        match file.write_disk(content).await {
-            Ok(_) => {}
-            Err(_) => {
-                // Delete from DB on disk write failure
-                if let Err(_) = file.delete_from_db(&appstate).await {
-                    eprintln!(
-                        "FATAL! Dangling entry in database 'file': reference_uuid: {} | owner_uuid: {}",
-                        file.reference_uuid,
-                        file.owner_uuid,
-                    );
-                    return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to write to disk and remove from db"));
+        // write to file in chunks
+        while let Some(chunk) = field
+            .chunk()
+            .await
+            .map_err(|_| (StatusCode::BAD_REQUEST, "Failed to get next chunk"))?
+        {
+            match file.write_chunk(chunk.as_ref()).await {
+                Ok(_) => { file.size += chunk.len() },
+                Err(_) => {
+                    match file.delete_from_disk().await {
+                        Ok(_) => {},
+                        Err(e) => {
+                            eprintln!("FATAL: DANGLING FILE: {:?}; ERROR: {}", &file, e);
+                        }
+                    }
+                    return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to write file to disk"))
                 }
-                return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to write file to disk"));
-            }
+            }// end match write_chunk
+        }// end while let chunk
+
+        // write file to db
+        match file.write_to_db(&appstate).await {
+            Ok(_) => {},
+            Err(_) => return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to write to db")),
         }
 
-        response_references.push(Response { reference_uuid: file.reference_uuid, filename: filename.to_owned() })
-    }
 
-    Ok((StatusCode::CREATED, Json(response_references)))
+        // add to response
+        response.push( Response { reference_uuid: file.reference_uuid, filename: file.filename });
+
+    }// end while let field
+
+    Ok((StatusCode::CREATED, Json(response)))
 }

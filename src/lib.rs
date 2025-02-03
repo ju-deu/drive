@@ -16,10 +16,6 @@ pub mod handlers {
         pub mod new;
     }
     pub mod files {
-        pub mod streaming {
-            pub mod download;
-            pub mod upload;
-        }
         pub mod download;
         pub mod delete;
         pub mod upload;
