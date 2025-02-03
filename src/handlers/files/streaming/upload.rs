@@ -66,6 +66,13 @@ pub async fn stream_upload(
             }// end match write_chunk
         }// end while let chunk
 
+        // write file to db
+        match file.write_to_db(&appstate).await {
+            Ok(_) => {},
+            Err(_) => return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to write to db")),
+        }
+
+
         // add to response
         response.push( Response { reference_uuid: file.reference_uuid, filename: file.filename });
 
