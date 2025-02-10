@@ -1,5 +1,5 @@
 use axum::http::Method;
-use axum::routing::{get, post, put};
+use axum::routing::{delete, get, post, put};
 use axum::{middleware, Extension, Router};
 use axum_extra::extract::cookie::Key;
 use dotenv::dotenv;
@@ -17,6 +17,7 @@ use axum::extract::DefaultBodyLimit;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
+use drive_lib::handlers::files::delete::delete_file;
 use drive_lib::handlers::files::download::serve_file;
 
 #[tokio::main]
@@ -52,6 +53,7 @@ async fn main() {
     let protected_file_routes = Router::new()
         .route("/upload", post(stream_upload))
         .route("/download/{ref_id}", get(serve_file))
+        .route("/delete/{ref_id}", delete(delete_file))
         .layer(
             ServiceBuilder::new()
                 .layer(DefaultBodyLimit::max(2000000000))

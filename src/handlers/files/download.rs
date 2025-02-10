@@ -42,7 +42,7 @@ pub async fn serve_file(
     match HeaderValue::from_str(&header_value) {
         Ok(o) => response.headers_mut().insert(header::CONTENT_DISPOSITION, o),
         _ => return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to construct response headers")),
-    }
+    };
 
     Ok(response.into_response())
 }
