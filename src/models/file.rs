@@ -129,13 +129,15 @@ impl File {
     /// DOES NOT CHECK FOR VALIDATION
     pub async fn get_from_db(
         reference_uuid: Uuid,
+        owner_uuid: Uuid,
         appstate: &Appstate,
     ) -> Result<Self, Box<dyn Error>> {
         let conn = &appstate.db_pool;
 
-        let query = r"SELECT * FROM file WHERE reference_uuid = $1";
+        let query = r"SELECT * FROM file WHERE reference_uuid = $1 AND owner_uuid = $2";
         let row = sqlx::query(query)
             .bind(reference_uuid.to_string())
+            .bind(owner_uuid.to_string())
             .fetch_one(conn.as_ref())
             .await?;
 
@@ -182,7 +184,7 @@ impl File {
     /// DOES NOT CHECK FOR VALIDATION
     pub async fn write_chunk(&self, chunk: &[u8]) -> Result<(), Box<dyn Error + Send + Sync>> {
         let path = Path::new(&self.absolute_path);
-        // create if doesn't exist
+        // create path if it doesn't exist
         if !tokio::fs::try_exists(path).await? {
             tokio::fs::File::create(path).await?;
         }

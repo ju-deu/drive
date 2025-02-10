@@ -17,6 +17,7 @@ use axum::extract::DefaultBodyLimit;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
+use drive_lib::handlers::files::download::serve_file;
 
 #[tokio::main]
 async fn main() {
@@ -50,6 +51,7 @@ async fn main() {
     // axum
     let protected_file_routes = Router::new()
         .route("/upload", post(stream_upload))
+        .route("/download/{ref_id}", get(serve_file))
         .layer(
             ServiceBuilder::new()
                 .layer(DefaultBodyLimit::max(2000000000))
