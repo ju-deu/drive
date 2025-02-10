@@ -39,10 +39,9 @@ pub async fn serve_file(
 
     // set custom headers for original filename
     let header_value = format!("attachment; filename=\"{}\"", &file.filename);
-    if let Ok(value) = HeaderValue::from_str(&header_value) {
-        response.headers_mut().insert(header::CONTENT_DISPOSITION, value);
-    } else {
-        return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to construct headers"))
+    match HeaderValue::from_str(&header_value) {
+        Ok(o) => response.headers_mut().insert(header::CONTENT_DISPOSITION, o),
+        _ => return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to construct response headers")),
     }
 
     Ok(response.into_response())
